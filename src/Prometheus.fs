@@ -386,7 +386,7 @@ module private Format =
     let private formatValue = function
         | Int int -> int.ToString()
         | Float float ->
-            let str = float.ToString()
+            let str = float.ToString Globalization.CultureInfo.InvariantCulture
             if str.Contains('.') then str.TrimEnd('0').TrimEnd('.') else str
         | Infinite -> "+Inf"
         | NegativeInfinite -> "-Inf"

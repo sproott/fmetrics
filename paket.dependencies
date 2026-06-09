@@ -5,6 +5,13 @@ nuget FSharp.Core ~> 10.0
 nuget Feather.ErrorHandling ~> 2.0
 nuget Alma.ServiceIdentification ~> 11.0
 
+// [ TESTS GROUP ]
+group Tests
+    storage none
+    source https://api.nuget.org/v3/index.json
+    nuget Expecto
+    nuget YoloDev.Expecto.TestSdk
+
 // [ FAKE GROUP ]
 group Build
     storage none
