@@ -254,6 +254,87 @@ resource_availability {svc_domain="consents", svc_context="example", svc_purpose
 resource_availability {svc_domain="consents", svc_context="example", svc_purpose="common", svc_version="stable", res_location="kfall-1.dev1.services.lmc", res_type="kafka-topic", res_identification="consents-consentorStream-common-all", audience="sys"} 1
 ```
 
+### Histogram metric
+_With error handling_
+
+```fs
+open Alma.Metrics
+
+result {
+    let simpleDataSet =
+        SimpleHistogramDataSet.create
+            [ ("endpoint", "/api/consents") ]
+            HistogramBuckets.defaultBuckets
+            [ 0.012; 0.024; 0.17; 0.42 ]
+
+    let! histogram =
+        [ simpleDataSet ]
+        |> Histogram.createWithSimpleDataSets
+            "http_request_duration_seconds"
+            (Some "HTTP request duration in seconds.")
+
+    return histogram |> Histogram.format
+}
+|> function
+    | Ok formatted -> printfn "%s" formatted
+    | Error error -> failwithf "Error: %A" error
+```
+
+Formatted Metric:
+```
+# HELP http_request_duration_seconds HTTP request duration in seconds.
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="0.005"} 0
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="0.01"} 0
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="0.025"} 2
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="0.05"} 2
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="0.1"} 2
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="0.25"} 3
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="0.5"} 4
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="1"} 4
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="2.5"} 4
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="5"} 4
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="10"} 4
+http_request_duration_seconds_bucket {endpoint="/api/consents", le="+Inf"} 4
+http_request_duration_seconds_sum {endpoint="/api/consents"} 0.626
+http_request_duration_seconds_count {endpoint="/api/consents"} 4
+```
+
+### Histogram with state
+_With error handling_
+
+```fs
+open Alma.Metrics
+
+let metricName =
+    match "http_request_duration_seconds" |> MetricName.create with
+    | Ok validName -> validName
+    | Error error -> failwithf "%A" error
+
+let endpointKey =
+    [ ("endpoint", "/api/consents") ]
+    |> List.map Label.create
+    |> Result.sequence
+    |> Result.map DataSetKey
+    |> function
+        | Ok key -> key
+        | Error error -> failwithf "%A" error
+
+State.observeHistogramSetValue HistogramBuckets.defaultBuckets 0.012 metricName endpointKey
+State.observeHistogramSetValue HistogramBuckets.defaultBuckets 0.024 metricName endpointKey
+State.observeHistogramSetValue HistogramBuckets.defaultBuckets 0.17 metricName endpointKey
+State.observeHistogramSetValue HistogramBuckets.defaultBuckets 0.42 metricName endpointKey
+
+match State.getHistogram metricName with
+| Some histogram ->
+    { histogram with
+        Description = Some "HTTP request duration in seconds."
+    }
+    |> Histogram.format
+    |> printfn "%s"
+| None -> ()
+```
+
 ## Release
 1. Increment version in `Metrics.fsproj`
 2. Update `CHANGELOG.md`

@@ -66,9 +66,17 @@ Pure library for Prometheus-compatible metrics:
 - **Metric types:** Counter, Gauge, Histogram, Summary, Untyped
 - **Value types:** Int, Float, Infinite, NegativeInfinite, NotANumber
 - **SimpleDataSet** — metric with labels (key-value pairs)
+- **SimpleHistogramDataSet / HistogramDataSet** — histogram buckets, cumulative counts, sum and count per label set
+- **HistogramBuckets** — normalized custom/default bucket definitions (`+Inf` bucket is appended automatically)
 - **Metric.format** — formats a metric to Prometheus exposition format text
 - **Metric.createSimple** / **Metric.createWithSimpleDataSets** — constructor functions
+- **Histogram.format** / **Histogram.createWithSimpleDataSets** — histogram constructor and formatter
 - **ServiceStatus** / **ResourceAvailability** — higher-level domain metrics
+
+State module also supports histogram observation and retrieval via:
+
+- **State.observeHistogramSetValue** — records a histogram observation for a metric and dataset key
+- **State.getHistogram** / **State.getHistograms** — reads histogram state as `Histogram` values
 
 Uses `result {}` computation expressions for validation (metric names, label values).
 

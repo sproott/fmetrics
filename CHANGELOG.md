@@ -3,6 +3,12 @@
 <!-- There is always Unreleased section on the top. Subsections (Add, Changed, Fix, Removed) should be Add as needed. -->
 ## Unreleased
 
+- Add histogram metrics support
+    - Add Prometheus histogram output formatting (`_bucket`, `_sum`, `_count`) with `Histogram` domain types and formatter.
+    - Add histogram state APIs for observation and retrieval: `State.observeHistogramSetValue`, `State.getHistogram`, and `State.getHistograms`.
+    - Add simple histogram data set creation (`SimpleHistogramDataSet`, `Histogram.createWithSimpleDataSets`) so observations can be converted to histogram buckets inside the library.
+    - Add histogram bucket configuration support via `HistogramBuckets`
+ 
 ## 12.0.0 - 2026-01-28
 - [**BC**] Use net10.0
 
