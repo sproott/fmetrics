@@ -3,6 +3,11 @@
 <!-- There is always Unreleased section on the top. Subsections (Add, Changed, Fix, Removed) should be Add as needed. -->
 ## Unreleased
 
+- Add explicit `Registry` support for test isolation and multiple metric scopes
+    - Add `Registry` type and `Registry.create ()` factory
+    - Add `Registry.defaultRegistry` (the implicit process-global registry used by all existing functions)
+    - Add `*In registry` variants for all `State`, `ResourceAvailability`, and `ServiceStatus` functions (`State.getMetricIn`, `State.observeHistogramSetValueIn`, `ResourceAvailability.enableIn`, `ServiceStatus.markAsEnabledIn`, etc.)
+    - Existing functions without a registry argument are unchanged and delegate to the default registry
 - Add histogram metrics support
     - Add Prometheus histogram output formatting (`_bucket`, `_sum`, `_count`) with `Histogram` domain types and formatter.
     - Add histogram state APIs for observation and retrieval: `State.observeHistogramSetValue`, `State.getHistogram`, and `State.getHistograms`.

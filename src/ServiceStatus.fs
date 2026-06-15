@@ -25,28 +25,31 @@ module ServiceStatus =
 
     let private serviceStatusMetric = "service_status" |> MetricName.createOrFail
 
-    let markAsEnabled instance audience =
-        audience
-        |> createDataSetKey instance
-        |> Result.map (fun dataSetKey -> fun () -> State.enableStatusMetric serviceStatusMetric dataSetKey)
-        |> Result.map MarkAsEnabled
-        |> Result.mapError DataSetError
+    let markAsEnabledIn, markAsEnabled =
+        Registry.withDefault (fun registry instance audience ->
+            audience
+            |> createDataSetKey instance
+            |> Result.map (fun dataSetKey -> fun () -> State.enableStatusMetricIn registry serviceStatusMetric dataSetKey)
+            |> Result.map MarkAsEnabled
+            |> Result.mapError DataSetError)
 
-    let markAsDisabled instance audience =
-        audience
-        |> createDataSetKey instance
-        |> Result.map (fun dataSetKey -> fun () -> State.disableStatusMetric serviceStatusMetric dataSetKey)
-        |> Result.map MarkAsDisabled
-        |> Result.mapError DataSetError
+    let markAsDisabledIn, markAsDisabled =
+        Registry.withDefault (fun registry instance audience ->
+            audience
+            |> createDataSetKey instance
+            |> Result.map (fun dataSetKey -> fun () -> State.disableStatusMetricIn registry serviceStatusMetric dataSetKey)
+            |> Result.map MarkAsDisabled
+            |> Result.mapError DataSetError)
 
-    let getFormattedValue () =
-        serviceStatusMetric
-        |> State.getMetric
-        |> function
-            | Some metric ->
-                { metric with
-                    Description = Some "Current service status."
-                    Type = Some MetricType.Gauge
-                }
-                |> Metric.format
-            | _ -> ""
+    let getFormattedValueIn, getFormattedValue =
+        Registry.withDefault (fun registry () ->
+            serviceStatusMetric
+            |> State.getMetricIn registry
+            |> function
+                | Some metric ->
+                    { metric with
+                        Description = Some "Current service status."
+                        Type = Some MetricType.Gauge
+                    }
+                    |> Metric.format
+                | _ -> "")

@@ -219,32 +219,35 @@ let prometheusPureTests =
     ]
 
 let statefulTests =
-    testSequenced <| testList "Stateful" [
+    testList "Stateful" [
         testCase "state set/get metric value" <| fun _ ->
+            let reg = Registry.create ()
             let name = uniqueMetricName "state_set_get"
-            State.setMetricValue (Int 10) name
+            State.setMetricValueIn reg (Int 10) name
 
-            match State.getMetric name with
+            match State.getMetricIn reg name with
             | None -> failtest "Metric should exist"
             | Some metric ->
                 Expect.equal (Metric.singleValue metric) (Some (Int 10)) "Single value mismatch"
 
         testCase "state increment metric value" <| fun _ ->
+            let reg = Registry.create ()
             let name = uniqueMetricName "state_increment"
-            State.incrementMetricValue (Int 2) name |> ignore
-            State.incrementMetricValue (Int 3) name |> ignore
+            State.incrementMetricValueIn reg (Int 2) name |> ignore
+            State.incrementMetricValueIn reg (Int 3) name |> ignore
 
-            match State.getMetric name with
+            match State.getMetricIn reg name with
             | None -> failtest "Metric should exist"
             | Some metric ->
                 Expect.equal (Metric.singleValue metric) (Some (Int 5)) "Incremented value mismatch"
 
         testCase "state histogram observe then read" <| fun _ ->
+            let reg = Registry.create ()
             let name = uniqueMetricName "state_hist"
-            State.observeHistogramSetValue (HistogramBuckets.create [ 1.0 ]) 0.5 name DataSetKey.empty
-            State.observeHistogramSetValue (HistogramBuckets.create [ 1.0 ]) 2.0 name DataSetKey.empty
+            State.observeHistogramSetValueIn reg (HistogramBuckets.create [ 1.0 ]) 0.5 name DataSetKey.empty
+            State.observeHistogramSetValueIn reg (HistogramBuckets.create [ 1.0 ]) 2.0 name DataSetKey.empty
 
-            match State.getHistogram name with
+            match State.getHistogramIn reg name with
             | None -> failtest "Histogram should exist"
             | Some histogram ->
                 let dataSet = histogram.DataSets |> List.head
@@ -254,35 +257,39 @@ let statefulTests =
                 Expect.equal dataSet.Count 2 "Histogram count mismatch"
 
         testCase "state histogram bounds mismatch throws" <| fun _ ->
+            let reg = Registry.create ()
             let name = uniqueMetricName "state_hist_bounds"
-            State.observeHistogramSetValue (HistogramBuckets.create [ 1.0 ]) 0.5 name DataSetKey.empty
+            State.observeHistogramSetValueIn reg (HistogramBuckets.create [ 1.0 ]) 0.5 name DataSetKey.empty
 
             Expect.throws
-                (fun _ -> State.observeHistogramSetValue (HistogramBuckets.create [ 2.0 ]) 1.5 name DataSetKey.empty)
+                (fun _ -> State.observeHistogramSetValueIn reg (HistogramBuckets.create [ 2.0 ]) 1.5 name DataSetKey.empty)
                 "Changing histogram bounds should throw"
 
         testCase "service status enable and disable" <| fun _ ->
+            let reg = Registry.create ()
+
             let markEnabled =
-                ServiceStatus.markAsEnabled instance Audience.Sys
+                ServiceStatus.markAsEnabledIn reg instance Audience.Sys
                 |> resultOrFail
 
             let markDisabled =
-                ServiceStatus.markAsDisabled instance Audience.Sys
+                ServiceStatus.markAsDisabledIn reg instance Audience.Sys
                 |> resultOrFail
 
             let (ServiceStatus.MarkAsEnabled enableFn) = markEnabled
             let (ServiceStatus.MarkAsDisabled disableFn) = markDisabled
 
             enableFn ()
-            let enabledValue = ServiceStatus.getFormattedValue ()
+            let enabledValue = ServiceStatus.getFormattedValueIn reg ()
             Expect.stringContains enabledValue "service_status" "Missing service_status metric"
             Expect.stringContains enabledValue " 1" "Service should be enabled"
 
             disableFn ()
-            let disabledValue = ServiceStatus.getFormattedValue ()
+            let disabledValue = ServiceStatus.getFormattedValueIn reg ()
             Expect.stringContains disabledValue " 0" "Service should be disabled"
 
         testCase "resource availability supports multi-tenant labels" <| fun _ ->
+            let reg = Registry.create ()
             let resource =
                 ResourceAvailability.createForMultiTenantServiceFromStrings
                     "postgres"
@@ -291,16 +298,17 @@ let statefulTests =
                     box
                     Audience.Sys
 
-            match ResourceAvailability.enable instance resource with
+            match ResourceAvailability.enableIn reg instance resource with
             | Error e -> failtestf "Enable should succeed, got %A" e
             | Ok _ ->
-                let formatted = ResourceAvailability.getFormattedValue ()
+                let formatted = ResourceAvailability.getFormattedValueIn reg ()
                 Expect.stringContains formatted "resource_availability" "Missing metric"
                 Expect.stringContains formatted "res_svc_zone=\"data\"" "Missing zone label"
                 Expect.stringContains formatted "res_svc_bucket=\"lmc\"" "Missing bucket label"
                 Expect.stringContains formatted " 1" "Resource should be enabled"
 
         testCase "resource availability common variant" <| fun _ ->
+            let reg = Registry.create ()
             let resource =
                 ResourceAvailability.createFromStrings
                     "redis"
@@ -308,18 +316,17 @@ let statefulTests =
                     "eu-west"
                     Audience.Sys
 
-            match ResourceAvailability.enable instance resource with
+            match ResourceAvailability.enableIn reg instance resource with
             | Error e -> failtestf "Enable should succeed, got %A" e
             | Ok _ ->
-                let formatted = ResourceAvailability.getFormattedValue ()
+                let formatted = ResourceAvailability.getFormattedValueIn reg ()
                 Expect.stringContains formatted "res_type=\"redis\"" "Missing res_type label"
                 Expect.stringContains formatted "res_identification=\"cache-01\"" "Missing res_identification"
                 Expect.stringContains formatted "res_location=\"eu-west\"" "Missing res_location"
-                // Common variant has no res_svc_zone/bucket
-                // TODO: cannot assert absence of zone label - global state polluted by multi-tenant test
-                // Expect.isFalse (formatted.Contains "res_svc_zone") "Common resource must not have zone label"
+                Expect.isFalse (formatted.Contains "res_svc_zone") "Common resource must not have zone label"
 
         testCase "resource availability service variant" <| fun _ ->
+            let reg = Registry.create ()
             let resource =
                 ResourceAvailability.createForServiceFromStrings
                     "mysql"
@@ -328,17 +335,16 @@ let statefulTests =
                     instance
                     Audience.Sys
 
-            match ResourceAvailability.enable instance resource with
+            match ResourceAvailability.enableIn reg instance resource with
             | Error e -> failtestf "Enable should succeed, got %A" e
             | Ok _ ->
-                let formatted = ResourceAvailability.getFormattedValue ()
+                let formatted = ResourceAvailability.getFormattedValueIn reg ()
                 Expect.stringContains formatted "res_type=\"mysql\"" "Missing res_type label"
                 Expect.stringContains formatted "res_svc_domain=\"consents\"" "Missing res_svc_domain"
-                // Service variant has no zone/bucket
-                // TODO: cannot assert absence of zone label - global state polluted by multi-tenant test
-                // Expect.isFalse (formatted.Contains "res_svc_zone") "Service resource must not have zone label"
+                Expect.isFalse (formatted.Contains "res_svc_zone") "Service resource must not have zone label"
 
         testCase "resource availability disable" <| fun _ ->
+            let reg = Registry.create ()
             let resource =
                 ResourceAvailability.createForMultiTenantServiceFromStrings
                     "kafka"
@@ -347,48 +353,51 @@ let statefulTests =
                     box
                     Audience.Sys
 
-            ResourceAvailability.enable instance resource |> ignore
+            ResourceAvailability.enableIn reg instance resource |> ignore
 
-            match ResourceAvailability.disable instance resource with
+            match ResourceAvailability.disableIn reg instance resource with
             | Error e -> failtestf "Disable should succeed, got %A" e
             | Ok _ ->
-                let formatted = ResourceAvailability.getFormattedValue ()
-                // The kafka/broker-1 entry should now be 0
+                let formatted = ResourceAvailability.getFormattedValueIn reg ()
                 Expect.stringContains formatted "res_identification=\"broker-1\"" "Missing identification"
 
         testCase "state increment metric set value" <| fun _ ->
+            let reg = Registry.create ()
             let name = uniqueMetricName "state_set_inc"
-            State.incrementMetricSetValue (Int 3) name DataSetKey.empty |> ignore
-            State.incrementMetricSetValue (Int 4) name DataSetKey.empty |> ignore
+            State.incrementMetricSetValueIn reg (Int 3) name DataSetKey.empty |> ignore
+            State.incrementMetricSetValueIn reg (Int 4) name DataSetKey.empty |> ignore
 
-            match State.getMetric name with
+            match State.getMetricIn reg name with
             | None -> failtest "Metric should exist"
             | Some metric ->
                 Expect.equal (Metric.singleValue metric) (Some (Int 7)) "Incremented set value mismatch"
 
         testCase "state set metric set value" <| fun _ ->
+            let reg = Registry.create ()
             let name = uniqueMetricName "state_set_set"
-            State.setMetricSetValue (Int 10) name DataSetKey.empty
-            State.setMetricSetValue (Int 20) name DataSetKey.empty
+            State.setMetricSetValueIn reg (Int 10) name DataSetKey.empty
+            State.setMetricSetValueIn reg (Int 20) name DataSetKey.empty
 
-            match State.getMetric name with
+            match State.getMetricIn reg name with
             | None -> failtest "Metric should exist"
             | Some metric ->
                 Expect.equal (Metric.singleValue metric) (Some (Int 20)) "Set overwrites previous value"
 
         testCase "state getMetrics returns all simple metrics" <| fun _ ->
+            let reg = Registry.create ()
             let name = uniqueMetricName "bulk_read"
-            State.setMetricValue (Int 99) name
+            State.setMetricValueIn reg (Int 99) name
 
-            let metrics = State.getMetrics ()
+            let metrics = State.getMetricsIn reg ()
             let found = metrics |> List.exists (fun m -> Metric.singleValue m = Some (Int 99))
             Expect.isTrue found "getMetrics should include newly set metric"
 
         testCase "state getHistograms returns all histograms" <| fun _ ->
+            let reg = Registry.create ()
             let name = uniqueMetricName "bulk_hist"
-            State.observeHistogramSetValue (HistogramBuckets.create [ 1.0 ]) 0.5 name DataSetKey.empty
+            State.observeHistogramSetValueIn reg (HistogramBuckets.create [ 1.0 ]) 0.5 name DataSetKey.empty
 
-            let histograms = State.getHistograms ()
+            let histograms = State.getHistogramsIn reg ()
             let found = histograms |> List.exists (fun h -> h.DataSets |> List.isEmpty |> not)
             Expect.isTrue found "getHistograms should include newly observed histogram"
     ]

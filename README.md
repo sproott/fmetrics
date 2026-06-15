@@ -335,6 +335,32 @@ match State.getHistogram metricName with
 | None -> ()
 ```
 
+## Registry
+
+By default all state functions (`State`, `ServiceStatus`, `ResourceAvailability`) write to and read from a shared process-global registry — the normal Prometheus single-endpoint model.
+
+For test isolation or multiple independent metric scopes, create an explicit `Registry` and use the `*In` variants:
+
+```fs
+open Alma.Metrics
+
+let reg = Registry.create ()
+
+// Write into the isolated registry
+State.setMetricValueIn reg (Int 42) metricName
+State.observeHistogramSetValueIn reg HistogramBuckets.defaultBuckets 0.5 metricName key
+ResourceAvailability.enableIn reg instance kafkaClusterResource |> ignore
+ServiceStatus.markAsEnabledIn reg instance Audience.Sys |> ignore
+
+// Read from it
+State.getMetricIn reg metricName
+State.getHistogramsIn reg ()
+ResourceAvailability.getFormattedValueIn reg ()
+ServiceStatus.getFormattedValueIn reg ()
+```
+
+The original functions (`State.setMetricValue`, `ResourceAvailability.enable`, etc.) remain unchanged and still target the default registry.
+
 ## Release
 1. Increment version in `Metrics.fsproj`
 2. Update `CHANGELOG.md`

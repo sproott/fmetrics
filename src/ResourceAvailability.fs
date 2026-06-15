@@ -124,26 +124,29 @@ module ResourceAvailability =
 
     let private resourceAvailabilityMetric = "resource_availability" |> MetricName.createOrFail
 
-    let enable instance resource =
-        resource
-        |> createDataSetKey instance
-        |> Result.map (State.enableStatusMetric resourceAvailabilityMetric)
-        |> Result.mapError DataSetError
+    let enableIn, enable =
+        Registry.withDefault (fun registry instance resource ->
+            resource
+            |> createDataSetKey instance
+            |> Result.map (State.enableStatusMetricIn registry resourceAvailabilityMetric)
+            |> Result.mapError DataSetError)
 
-    let disable instance resource =
-        resource
-        |> createDataSetKey instance
-        |> Result.map (State.disableStatusMetric resourceAvailabilityMetric)
-        |> Result.mapError DataSetError
+    let disableIn, disable =
+        Registry.withDefault (fun registry instance resource ->
+            resource
+            |> createDataSetKey instance
+            |> Result.map (State.disableStatusMetricIn registry resourceAvailabilityMetric)
+            |> Result.mapError DataSetError)
 
-    let getFormattedValue () =
-        resourceAvailabilityMetric
-        |> State.getMetric
-        |> function
-            | Some metric ->
-                { metric with
-                    Description = Some "Current instance resources."
-                    Type = Some MetricType.Gauge
-                }
-                |> Metric.format
-            | _ -> ""
+    let getFormattedValueIn, getFormattedValue =
+        Registry.withDefault (fun registry () ->
+            resourceAvailabilityMetric
+            |> State.getMetricIn registry
+            |> function
+                | Some metric ->
+                    { metric with
+                        Description = Some "Current instance resources."
+                        Type = Some MetricType.Gauge
+                    }
+                    |> Metric.format
+                | _ -> "")
